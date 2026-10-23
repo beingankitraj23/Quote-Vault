@@ -41,3 +41,5 @@ Open http://localhost:3000.
 - Test the fallback with `/api/quote?mode=fallback`.
 - Users are anonymous: each browser stores a random id in localStorage and sends it as `x-user-id`, so favorites are per browser. Add real auth if you need cross-device accounts.
 - SQLite will not work on Vercel (read-only, ephemeral filesystem), which is why this uses hosted Postgres.
+
+Working Link - https://quote-vault-zeta.vercel.app/
