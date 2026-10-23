@@ -1,0 +1,10 @@
+{
+  "name": "quote-vault",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fetch quotes from public APIs and save favorites to a Postgres database. Deploys on Vercel.",
+  "engines": { "node": "20.x" },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.0"
+  }
+}

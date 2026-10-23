@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quote Vault</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --fog: #e9eef1;
+      --paper: #fbfcfc;
+      --ink: #15232e;
+      --muted: #5d6f7c;
+      --line: #cfd9df;
+      --teal: #0e6f6a;
+      --teal-dark: #0a524e;
+      --mark: #f6d365;
+      --danger: #a63d2f;
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--fog); }
+    body {
+      margin: 0; color: var(--ink);
+      font-family: "Instrument Sans", system-ui, sans-serif;
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 1120px; margin: 0 auto; padding: 32px 20px 64px;
+      display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 40px;
+    }
+    @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; gap: 32px; } }
+
+    header { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+    h1 { font-family: "Newsreader", serif; font-size: 1.5rem; font-weight: 600; margin: 0; }
+    .tag { color: var(--muted); font-size: .9rem; }
+
+    /* Current quote */
+    .stage { padding-top: 24px; }
+    .quote-text {
+      font-family: "Newsreader", serif; font-weight: 400;
+      font-size: clamp(1.7rem, 3.6vw, 2.7rem); line-height: 1.25;
+      margin: 0 0 20px; text-wrap: balance;
+    }
+    .quote-text span {
+      background: linear-gradient(transparent 62%, var(--mark) 62%, var(--mark) 92%, transparent 92%);
+      -webkit-box-decoration-break: clone; box-decoration-break: clone;
+    }
+    .author { font-size: 1.05rem; font-weight: 500; margin: 0; }
+    .source { color: var(--muted); font-size: .85rem; margin: 2px 0 0; }
+    .stage.loading .quote-text { opacity: .35; }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+    button {
+      font: inherit; font-weight: 500; cursor: pointer;
+      border-radius: 8px; padding: 10px 16px;
+      border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+    }
+    button:hover:not(:disabled) { border-color: var(--teal); }
+    button:disabled { opacity: .55; cursor: default; }
+    button:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+    .primary { background: var(--teal); border-color: var(--teal); color: #fff; }
+    .primary:hover:not(:disabled) { background: var(--teal-dark); border-color: var(--teal-dark); }
+    .saved { background: var(--ink); border-color: var(--ink); color: #fff; }
+    .mode { margin-top: 14px; display: flex; gap: 6px; }
+    .mode button { padding: 6px 12px; font-size: .88rem; }
+    .mode button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+    /* Favorites */
+    aside h2 { font-family: "Newsreader", serif; font-size: 1.3rem; margin: 0 0 14px; font-weight: 600; }
+    #count { color: var(--muted); font-weight: 400; font-size: 1rem; }
+    .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; max-height: 70vh; overflow-y: auto; }
+    .fav {
+      background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--teal);
+      border-radius: 6px; padding: 14px 16px;
+    }
+    .fav p { margin: 0 0 6px; font-family: "Newsreader", serif; font-size: 1.1rem; line-height: 1.35; }
+    .fav .meta { color: var(--muted); font-size: .85rem; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; }
+    .fav .row { display: flex; gap: 6px; }
+    .fav button { padding: 4px 10px; font-size: .82rem; }
+    .fav .remove:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+    .empty { color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; padding: 20px; }
+
+    #toast {
+      position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px);
+      background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 8px;
+      opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+    }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+    #toast.error { background: var(--danger); }
+    @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Quote Vault</h1>
+      <span class="tag">Save the lines worth keeping</span>
+    </header>
+
+    <main class="stage" id="stage" aria-live="polite">
+      <blockquote style="margin:0">
+        <p class="quote-text"><span id="qtext">Loading a quote…</span></p>
+        <footer>
+          <p class="author" id="qauthor"></p>
+          <p class="source" id="qsource"></p>
+        </footer>
+      </blockquote>
+
+      <div class="actions">
+        <button class="primary" id="btn-new">New quote</button>
+        <button id="btn-save">Save to favorites</button>
+        <button id="btn-copy">Copy</button>
+      </div>
+      <div class="mode" role="group" aria-label="Quote source">
+        <button id="mode-random" aria-pressed="true">Random</button>
+        <button id="mode-daily" aria-pressed="false">Quote of the day</button>
+      </div>
+    </main>
+
+    <aside>
+      <h2>Favorites <span id="count"></span></h2>
+      <ul class="list" id="favs"></ul>
+    </aside>
+  </div>
+  <div id="toast" role="status"></div>
+
+  <script>
+    // Anonymous per-browser identity so each visitor sees only their own favorites.
+    function getUserId() {
+      try {
+        let id = localStorage.getItem('qv_user');
+        if (!id) {
+          id = (crypto.randomUUID && crypto.randomUUID()) ||
+               'u-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+          localStorage.setItem('qv_user', id);
+        }
+        return id;
+      } catch (_) { return 'anon-' + Math.random().toString(36).slice(2, 12); }
+    }
+    const USER_ID = getUserId();
+    const $ = (id) => document.getElementById(id);
+
+    let current = null;     // {text, author, source}
+    let favorites = [];     // [{id, text, author, created_at}]
+    let mode = 'random';
+
+    async function api(path, opts = {}) {
+      const res = await fetch(path, {
+        ...opts,
+        headers: { 'Content-Type': 'application/json', 'x-user-id': USER_ID, ...(opts.headers || {}) },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    let toastTimer;
+    function toast(msg, isError) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.className = 'show' + (isError ? ' error' : '');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => (t.className = ''), 2200);
+    }
+
+    async function copyText(text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          const ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+          if (!ok) throw new Error('copy failed');
+        }
+        toast('Copied to clipboard');
+      } catch (_) { toast('Could not copy. Select the text and copy it manually.', true); }
+    }
+
+    const fmt = (q) => `“${q.text}” — ${q.author}`;
+    const isSaved = () => current && favorites.some((f) => f.text === current.text);
+
+    function renderCurrent() {
+      $('qtext').textContent = current ? current.text : 'Loading a quote…';
+      $('qauthor').textContent = current ? current.author : '';
+      $('qsource').textContent = current ? 'via ' + current.source : '';
+      const saved = isSaved();
+      const b = $('btn-save');
+      b.textContent = saved ? 'Saved' : 'Save to favorites';
+      b.classList.toggle('saved', !!saved);
+      b.disabled = !current || saved;
+      $('btn-copy').disabled = !current;
+    }
+
+    function renderFavorites() {
+      const list = $('favs');
+      list.replaceChildren();
+      $('count').textContent = favorites.length ? `(${favorites.length})` : '';
+      if (!favorites.length) {
+        const li = document.createElement('li');
+        li.className = 'empty';
+        li.textContent = 'No favorites yet. Save a quote and it will appear here.';
+        list.appendChild(li);
+        return;
+      }
+      for (const f of favorites) {
+        const li = document.createElement('li'); li.className = 'fav';
+        const p = document.createElement('p'); p.textContent = f.text;
+        const meta = document.createElement('div'); meta.className = 'meta';
+        const who = document.createElement('span');
+        who.textContent = `${f.author} · ${new Date(f.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        const row = document.createElement('div'); row.className = 'row';
+        const copy = document.createElement('button'); copy.textContent = 'Copy';
+        copy.onclick = () => copyText(fmt(f));
+        const rm = document.createElement('button'); rm.textContent = 'Remove'; rm.className = 'remove';
+        rm.onclick = async () => {
+          rm.disabled = true;
+          try {
+            await api('/api/favorites?id=' + f.id, { method: 'DELETE' });
+            favorites = favorites.filter((x) => x.id !== f.id);
+            renderFavorites(); renderCurrent();
+            toast('Removed');
+          } catch (e) { rm.disabled = false; toast(e.message, true); }
+        };
+        row.append(copy, rm);
+        meta.append(who, row);
+        li.append(p, meta);
+        list.appendChild(li);
+      }
+    }
+
+    async function loadQuote() {
+      $('stage').classList.add('loading');
+      $('btn-new').disabled = true;
+      try {
+        current = await api('/api/quote?mode=' + mode);
+      } catch (e) {
+        toast('Could not fetch a quote. Try again.', true);
+      } finally {
+        $('stage').classList.remove('loading');
+        $('btn-new').disabled = false;
+        renderCurrent();
+      }
+    }
+
+    async function loadFavorites() {
+      try { favorites = await api('/api/favorites'); }
+      catch (e) { toast(e.message, true); }
+      renderFavorites(); renderCurrent();
+    }
+
+    $('btn-new').onclick = () => { setMode('random'); loadQuote(); };
+    $('btn-copy').onclick = () => current && copyText(fmt(current));
+    $('btn-save').onclick = async () => {
+      if (!current) return;
+      $('btn-save').disabled = true;
+      try {
+        const saved = await api('/api/favorites', {
+          method: 'POST',
+          body: JSON.stringify({ text: current.text, author: current.author }),
+        });
+        if (!favorites.some((f) => f.id === saved.id)) favorites.unshift(saved);
+        renderFavorites(); renderCurrent();
+        toast(saved.duplicate ? 'Already in your favorites' : 'Saved to favorites');
+      } catch (e) { toast(e.message, true); renderCurrent(); }
+    };
+
+    function setMode(m) {
+      mode = m;
+      $('mode-random').setAttribute('aria-pressed', m === 'random');
+      $('mode-daily').setAttribute('aria-pressed', m === 'daily');
+    }
+    $('mode-random').onclick = () => { setMode('random'); loadQuote(); };
+    $('mode-daily').onclick = () => { setMode('daily'); loadQuote(); };
+
+    renderCurrent(); renderFavorites();
+    loadQuote(); loadFavorites();
+  </script>
+</body>
+</html>
